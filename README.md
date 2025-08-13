@@ -26,7 +26,7 @@ export CUDA_HOME=/usr/local/cuda-12.6
 # Install PyTorch with CUDA 12.6
 PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu126
 
-pip3 install torch torchvision torchaudio --index-url $PYTORCH_INDEX_URL
+pip3 install 'torch==2.7.*' torchvision torchaudio --index-url $PYTORCH_INDEX_URL
 
 # Additional packages for building extensions
 pip3 install packaging ninja wheel setuptools setuptools-scm
