@@ -16,7 +16,7 @@ from torch import nn
 # Add dataset path to sys.path to import arithmetic evaluation
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'dataset'))
 
-from losses import ACTLossHead, IGNORE_LABEL_ID
+from .losses import ACTLossHead, IGNORE_LABEL_ID
 try:
     from arithmetic_evaluation import compute_arithmetic_metrics, decode_arithmetic_sequence, evaluate_arithmetic_equation
 except ImportError:
@@ -119,7 +119,7 @@ class ArithmeticACTLossHead(ACTLossHead):
                 results['result_only_correct'] += 1
                 continue
                 
-            # Check mathematical correctness
+            # Check mathematical correctness using Python's eval for ground truth
             is_math_correct, expected_result = evaluate_arithmetic_equation(pred_eq)
             
             if is_math_correct:

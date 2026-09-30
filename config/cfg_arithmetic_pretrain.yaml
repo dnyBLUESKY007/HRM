@@ -7,14 +7,17 @@ defaults:
 hydra:
   output_subdir: null
 
+wandb:
+  entity: dnybluesky007-microsoft
+
 # Data path
-data_path: data/arithmetic-1k-aug-1000
+data_path: data/arithmetic-enhanced-balanced
 
 # Hyperparams - Training
-global_batch_size: 384
+global_batch_size: 256
 
-epochs: 20000
-eval_interval: 2000
+epochs: 5000
+eval_interval: 500
 checkpoint_every_eval: True
 
 lr: 1e-4

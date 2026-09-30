@@ -105,8 +105,41 @@ def decode_arithmetic_sequence(tokens) -> Tuple[Optional[str], Optional[int]]:
         return None, None
 
 
+def evaluate_arithmetic_equation_python(equation_str: str) -> Tuple[bool, Optional[int]]:
+    """
+    Evaluate arithmetic equation using Python's eval() for ground truth.
+    More reliable than manual implementation.
+    """
+    try:
+        # Clean the equation string
+        equation_str = equation_str.strip()
+        if not equation_str:
+            return False, None
+            
+        # Security check - only allow basic arithmetic operations and numbers
+        allowed_chars = set('0123456789+-*/().-. ')
+        if not all(c in allowed_chars for c in equation_str):
+            return False, None
+            
+        # Evaluate using Python
+        result = eval(equation_str)
+        
+        # Check if result is a valid number
+        if isinstance(result, (int, float)):
+            # Convert to int if it's a whole number
+            if isinstance(result, float) and result.is_integer():
+                result = int(result)
+            return True, result
+        else:
+            return False, None
+            
+    except (SyntaxError, ValueError, ZeroDivisionError, TypeError, NameError):
+        return False, None
+
+
 def evaluate_arithmetic_equation(equation_str: str) -> Tuple[bool, Optional[int]]:
     """Evaluate an arithmetic equation string and check correctness.
+    Now uses Python's eval as primary method for ground truth.
     
     Args:
         equation_str: String like "1234 + 5678 = 6912"
@@ -117,7 +150,8 @@ def evaluate_arithmetic_equation(equation_str: str) -> Tuple[bool, Optional[int]
     
     try:
         if '=' not in equation_str:
-            return False, None
+            # For expressions without equals, just evaluate them
+            return evaluate_arithmetic_equation_python(equation_str)
             
         parts = equation_str.split('=')
         if len(parts) != 2:
@@ -131,20 +165,13 @@ def evaluate_arithmetic_equation(equation_str: str) -> Tuple[bool, Optional[int]
         except ValueError:
             return False, None
             
-        # Safely evaluate the expression
-        # Replace operators with Python equivalents
-        expression = expression.replace('/', '//')  # Integer division
+        # Use Python's eval for ground truth calculation
+        is_valid, expected_result = evaluate_arithmetic_equation_python(expression)
         
-        # Validate that expression only contains safe characters
-        allowed_chars = set('0123456789+-*/ ()')
-        if not all(c in allowed_chars for c in expression.replace(' ', '')):
-            return False, None
-            
-        try:
-            expected_result = eval(expression)
+        if is_valid and expected_result is not None:
             is_correct = (predicted_result == expected_result)
             return is_correct, expected_result
-        except:
+        else:
             return False, None
             
     except Exception:

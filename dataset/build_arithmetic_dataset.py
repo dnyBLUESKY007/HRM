@@ -43,7 +43,11 @@ def generate_arithmetic_problem(max_digits: int, operations: List[str], include_
         if max_digits == 1:
             num = np.random.randint(1, 10)
         else:
-            num = np.random.randint(10**(max_digits-1), 10**max_digits)
+            # Use Python's random to handle large numbers beyond int64
+            import random
+            lower = 10**(max_digits-1)
+            upper = 10**max_digits - 1
+            num = random.randint(lower, upper)
         
         # Add negative sign with probability
         if include_negative and np.random.rand() < 0.3:
@@ -63,20 +67,38 @@ def generate_arithmetic_problem(max_digits: int, operations: List[str], include_
         result = a * b
         operands = [result, b]
     
-    # Calculate result
-    if op == "+":
-        result = sum(operands)
-    elif op == "-":
-        result = operands[0] - operands[1]
-    elif op == "*":
-        result = operands[0] * operands[1]
-    elif op == "/" and len(operands) == 2:
-        result = operands[0] // operands[1]
+    # Calculate result using Python eval for consistency with evaluation
+    # Build expression string
+    if len(operands) < 2:
+        result = operands[0] if operands else 0
+    else:
+        # Create expression string
+        expr_parts = [str(operands[0])]
+        for i in range(1, len(operands)):
+            expr_parts.append(op)
+            expr_parts.append(str(operands[i]))
+        
+        expression = ' '.join(expr_parts)
+        
+        try:
+            # Use Python's eval for ground truth (same as evaluation)
+            if op == "/":
+                # For division, use integer division to match our token mapping
+                expression = expression.replace('/', '//')
+            result = eval(expression)
+            
+            # Ensure result is an integer
+            if isinstance(result, float):
+                result = int(result)
+                
+        except (ZeroDivisionError, ValueError, SyntaxError):
+            # Fallback to safe default
+            result = 0
     
     return operands, op, result
 
 
-def arithmetic_to_sequence(operands: List[int], operation: str, result: int):
+def arithmetic_to_sequence(operands: List[int], operation: str, result: int, max_seq_len: int = 32):
     """Convert arithmetic problem to token sequence.
     
     Token mapping:
@@ -117,7 +139,15 @@ def arithmetic_to_sequence(operands: List[int], operation: str, result: int):
     
     # Add equals and result
     tokens.append(15)  # =
-    tokens.extend(number_to_tokens(result))
+    result_tokens = number_to_tokens(result)
+    
+    # Check if sequence will fit in max_seq_len
+    total_length = len(tokens) + len(result_tokens) + 1  # +1 for EOS
+    if total_length > max_seq_len:
+        # Return None to indicate sequence too long
+        return None
+    
+    tokens.extend(result_tokens)
     tokens.append(16)  # EOS
     
     return tokens
@@ -141,6 +171,23 @@ def augment_problem(operands: List[int], operation: str, result: int):
             # (a - b) = c -> (a + delta) - (b + delta) = c
             operands = [operands[0] + delta, operands[1] + delta]
     
+    # Recalculate result with Python eval for consistency
+    if len(operands) >= 2:
+        expr_parts = [str(operands[0])]
+        for i in range(1, len(operands)):
+            expr_parts.append(operation)
+            expr_parts.append(str(operands[i]))
+        
+        expression = ' '.join(expr_parts)
+        try:
+            if operation == "/":
+                expression = expression.replace('/', '//')
+            result = eval(expression)
+            if isinstance(result, float):
+                result = int(result)
+        except:
+            pass  # Keep original result if evaluation fails
+    
     return operands, operation, result
 
 
@@ -148,12 +195,15 @@ def convert_subset(set_name: str, config: DataProcessConfig):
     """Generate arithmetic problems for given dataset split."""
     
     # Adjust problem count for train/test
-    num_problems = config.num_problems if set_name == "train" else config.num_problems // 5
+    num_problems = config.num_problems if set_name == "train" else config.num_problems // 2
     num_augments = config.num_aug if set_name == "train" else 0
     
     operations = config.operations.copy()
     if not config.include_division:
         operations = [op for op in operations if op != "/"]
+    
+    # Define max sequence length at the top
+    max_seq_len = 32  # Should be enough for most arithmetic problems
     
     results = {k: [] for k in ["inputs", "labels", "puzzle_identifiers", "puzzle_indices", "group_indices"]}
     puzzle_id = 0
@@ -169,6 +219,9 @@ def convert_subset(set_name: str, config: DataProcessConfig):
             config.max_digits, operations, config.include_negative, config.max_operands
         )
         
+        # Track examples added for this problem group
+        examples_added_this_group = 0
+        
         # Create augmentations
         for aug_idx in range(1 + num_augments):
             if aug_idx == 0:
@@ -179,8 +232,12 @@ def convert_subset(set_name: str, config: DataProcessConfig):
                 aug_operands, aug_op, aug_result = augment_problem(operands, op, result)
             
             # Convert to sequence
-            input_seq = arithmetic_to_sequence(aug_operands, aug_op, aug_result)
+            input_seq = arithmetic_to_sequence(aug_operands, aug_op, aug_result, max_seq_len)
             
+            # Skip if sequence is too long
+            if input_seq is None:
+                continue
+                
             # For this task, input and label are the same (model learns to complete the equation)
             # We can mask out the result part in labels during training
             label_seq = input_seq.copy()
@@ -190,16 +247,16 @@ def convert_subset(set_name: str, config: DataProcessConfig):
             
             example_id += 1
             puzzle_id += 1
+            examples_added_this_group += 1
             
             results["puzzle_indices"].append(example_id)
             results["puzzle_identifiers"].append(0)  # All arithmetic problems have same identifier
         
-        # Push group
-        results["group_indices"].append(puzzle_id)
+        # Only push group if we added examples
+        if examples_added_this_group > 0:
+            results["group_indices"].append(puzzle_id)
     
     # Pad sequences to fixed length
-    max_seq_len = 32  # Should be enough for most arithmetic problems
-    
     def pad_sequence(seq, target_len):
         if len(seq) > target_len:
             return seq[:target_len]
