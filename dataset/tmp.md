@@ -69,5 +69,30 @@
 
   # Train with enhanced arithmetic evaluation
   OMP_NUM_THREADS=8 torchrun --nproc-per-node 8 pretrain.py --config-name cfg_arithmetic_pretrain
+  OMP_NUM_THREADS=8 torchrun --nproc-per-node 1 pretrain.py --config-name cfg_arithmetic_pretrain
 
   The system will now properly track arithmetic problem-solving accuracy during training, giving you detailed insights into how well the model learns arithmetic reasoning!
+
+
+-v2
+python dataset/build_arithmetic_dataset.py --output-dir data/arithmetic-10digit-200-aug-200-v2 --num-problems 200 --max-digits 10 --num-aug 200 --max-operands 4
+
+
+python dataset/build_arithmetic_dataset.py --output-dir data/arithmetic-10digit-200-aug-200-v3 --num-problems 200 --max-digits 10 --num-aug 200 --max-operands 4
+
+
+python dataset/build_arithmetic_dataset.py --output-dir data/arithmetic-6digit-200-aug-200-v4 --num-problems 200 --max-digits 6 --num-aug 200 --max-operands 4
+
+
+  🎯 Training Recommendation:
+
+  To train a model with proper arithmetic capability:
+
+  # Generate the enhanced dataset (already done)
+  python dataset/build_enhanced_arithmetic_dataset.py --output-dir data/arithmetic-enhanced-balanced --num-problems 300 --num-aug 50
+
+  # Train with the enhanced dataset (config already updated)
+  OMP_NUM_THREADS=8 torchrun --nproc-per-node 1 pretrain.py --config-name cfg_arithmetic_pretrain
+
+  # Evaluate the trained model
+  python evaluate_arithmetic_capability.py --checkpoint "path/to/new/checkpoint"
